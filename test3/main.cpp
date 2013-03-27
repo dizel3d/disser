@@ -1,11 +1,11 @@
 #include <pthread.h>
-#include <list>
-#include <iostream>
-#include <string>
-#include <sstream>
 #include <ctime>
 #include <sys/time.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <iostream>
 
 struct timeval tv1,tv2,dtv;
 struct timezone tz;
@@ -18,13 +18,26 @@ long time_stop()
   return dtv.tv_sec*1000+dtv.tv_usec/1000;
 }
 
-sig_atomic_t workingNum = 0;
+long workingNum = 0;
 
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void* doneTask(void* arg) {
+	int rc = 0;
+	if ((rc = pthread_mutex_lock(&mutex)) != 0) {
+		std::cout << "pthread_mutex_lock " << rc << " " << strerror(rc) << std::endl;
+		return NULL;
+	}
 	--workingNum;
-	pthread_cond_signal(&cond);
+	if ((rc = pthread_cond_signal(&cond)) != 0) {
+		std::cout << "pthread_cond_signal " << rc << " " << strerror(rc) << std::endl;
+		return NULL;
+	}
+	if ((rc = pthread_mutex_unlock(&mutex)) != 0) {
+		std::cout << "pthread_mutex_unlock " << rc << " " << strerror(rc) << std::endl;
+		return NULL;
+	}
 	return NULL;
 }
 
@@ -42,7 +55,7 @@ static void* task2(void* arg)
 	static volatile long res = 1;
 	for (long i = 0; i < 1000000; ++i) {
 		res ^= (i + 1) * 3 >> 2;
-		if (i % 100000 != 0) {
+		if (i % 100 != 0) {
 			continue;
 		}
 		sched_yield();
@@ -63,10 +76,10 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	auto processNum = 4;
-	auto threadNum = atoi(argv[3]);
-	auto dtime = atol(argv[2]) * 1000;
-	auto taskNum = atoi(argv[1]);
+	long processNum = atoi(argv[4]);
+	long threadNum = atoi(argv[3]);
+	long dtime = atol(argv[2]) * 1000;
+	long taskNum = atoi(argv[1]);
 	long cycles = 0;
 
 	switch(taskNum) {
@@ -75,56 +88,61 @@ int main(int argc, char *argv[])
 	case 3: task = task3; break;
 	}
 
-	time_start();
-
-	for (auto i = 0; i < processNum; ++i) {
+	for (long i = 0; i < processNum; ++i) {
 		if (fork() != 0) {
 			continue;
 		}
 
 		pthread_attr_t attr;
-		pthread_attr_setstacksize(&attr, 64*1024);
+		pthread_attr_init(&attr);
+		pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN);
 
-		pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 		pthread_mutexattr_t mutexattr;
 		pthread_mutex_init(&mutex, &mutexattr);
+
 		pthread_condattr_t condattr;
 		pthread_cond_init(&cond, &condattr);
 
+		int rc = 0;
 		pthread_t pid;
+
+		if ((rc = pthread_mutex_lock(&mutex)) != 0) {
+			std::cout << "pthread_mutex_lock " << rc << " " << strerror(rc) << std::endl;
+			return 3;
+		}
+
+		time_start();
 		while (time_stop() < dtime) {
-			for (auto i = workingNum; i < threadNum; ++i) {
-				++workingNum;
-				if (pthread_create(&pid, NULL, task, NULL) == -1) {
+			for (long i = workingNum; i < threadNum; ++i) {
+				if ((rc = pthread_create(&pid, &attr, task, NULL)) != 0) {
+					std::cout << "pthread_create " << rc << " " << strerror(rc) << std::endl;
 					return 2;
 				}
+				++workingNum;
 			}
 
-			int rc;
-			if ((rc = pthread_mutex_lock(&mutex)) != 0) {
-				std::cout << "pthread_mutex_lock " << rc << " " << strerror(rc) << std::endl;
-				return 3;
-			}
 			if (workingNum == threadNum) {
 				if ((rc = pthread_cond_wait(&cond, &mutex)) != 0) {
 					std::cout << "pthread_cond_wait " << rc << " " << strerror(rc) << std::endl;
 					return 3;
 				}
 			}
-			if ((rc = pthread_mutex_unlock(&mutex)) != 0) {
-				std::cout << "pthread_mutex_unlock " << rc << " " << strerror(rc) << std::endl;
-				return 3;
-			}
 			//pthread_join(pids.front(), NULL);
 			//pids.pop_front();
 			cycles += threadNum - workingNum;
 		}
+		cycles += workingNum;
 
-		std::cout << cycles << std::endl;
+		if ((rc = pthread_mutex_unlock(&mutex)) != 0) {
+			std::cout << "pthread_mutex_unlock " << rc << " " << strerror(rc) << std::endl;
+			return 3;
+		}
+
+		std::cout << ((long double) cycles * 1000) / dtime  << std::endl;
 
 		return 0;
 	}
-	for (auto i = 0; i < processNum; ++i) {
+	for (long i = 0; i < processNum; ++i) {
 		wait(NULL);
 	}
 

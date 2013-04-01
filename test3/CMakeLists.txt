@@ -6,4 +6,9 @@ add_executable(test3_pth main.cpp)
 target_link_libraries(test3_pth ${pthread})
 set_target_properties(test3_pth PROPERTIES OUTPUT_NAME "pth")
 
+add_executable(test3_st st.cpp)
+include_directories(${st_INCLUDE_DIRS})
+target_link_libraries(test3_st ${st})
+set_target_properties(test3_st PROPERTIES OUTPUT_NAME "st")
+
 configure_file("test.sh" "test.sh" COPYONLY)

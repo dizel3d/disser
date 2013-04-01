@@ -1,4 +1,4 @@
-#include <pthread.h>
+#include <st.h>
 #include <ctime>
 #include <sys/time.h>
 #include <errno.h>
@@ -20,22 +20,13 @@ long time_stop()
 
 long workingNum = 0;
 
-pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+st_cond_t cond = st_cond_new();
 
 static void* doneTask(void* arg) {
 	int rc = 0;
-	if ((rc = pthread_mutex_lock(&mutex)) != 0) {
-		std::cout << "pthread_mutex_lock " << rc << " " << strerror(rc) << std::endl;
-		return NULL;
-	}
 	--workingNum;
-	if ((rc = pthread_cond_signal(&cond)) != 0) {
+	if ((rc = st_cond_signal(cond)) != 0) {
 		std::cout << "pthread_cond_signal " << rc << " " << strerror(rc) << std::endl;
-		return NULL;
-	}
-	if ((rc = pthread_mutex_unlock(&mutex)) != 0) {
-		std::cout << "pthread_mutex_unlock " << rc << " " << strerror(rc) << std::endl;
 		return NULL;
 	}
 	return NULL;
@@ -53,7 +44,7 @@ static void* task1(void* arg)
 static void* task2(void* arg)
 {
 	for (long i = 0; i < 100000; ++i) {
-		sched_yield();
+		st_sleep(0); // yield
 	}
 	return doneTask(arg);
 }
@@ -88,28 +79,15 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
-		pthread_attr_t attr;
-		pthread_attr_init(&attr);
-		pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN);
-
-		pthread_mutexattr_t mutexattr;
-		pthread_mutex_init(&mutex, &mutexattr);
-
-		pthread_condattr_t condattr;
-		pthread_cond_init(&cond, &condattr);
+		st_init();
 
 		int rc = 0;
-		pthread_t pid;
-
-		if ((rc = pthread_mutex_lock(&mutex)) != 0) {
-			std::cout << "pthread_mutex_lock " << rc << " " << strerror(rc) << std::endl;
-			return 3;
-		}
+		st_thread_t pid;
 
 		time_start();
 		while (time_stop() < dtime) {
 			for (long i = workingNum; i < threadNum; ++i) {
-				if ((rc = pthread_create(&pid, &attr, task, NULL)) != 0) {
+				if ((pid = st_thread_create(task, NULL, false, PTHREAD_STACK_MIN)) == NULL) {
 					std::cout << "pthread_create " << rc << " " << strerror(rc) << std::endl;
 					return 2;
 				}
@@ -117,7 +95,7 @@ int main(int argc, char *argv[])
 			}
 
 			if (workingNum == threadNum) {
-				if ((rc = pthread_cond_wait(&cond, &mutex)) != 0) {
+				if ((rc = st_cond_wait(cond)) != 0) {
 					std::cout << "pthread_cond_wait " << rc << " " << strerror(rc) << std::endl;
 					return 3;
 				}
@@ -126,12 +104,7 @@ int main(int argc, char *argv[])
 			//pids.pop_front();
 			cycles += threadNum - workingNum;
 		}
-		//cycles += workingNum;
-
-		if ((rc = pthread_mutex_unlock(&mutex)) != 0) {
-			std::cout << "pthread_mutex_unlock " << rc << " " << strerror(rc) << std::endl;
-			return 3;
-		}
+		cycles += workingNum;
 
 		std::cout << ((long double) cycles * 1000) / dtime  << std::endl;
 

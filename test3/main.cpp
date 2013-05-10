@@ -6,6 +6,10 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <iostream>
+#include <string.h>
+#include <stdio.h>
+#include <limits.h>
+#include <sys/wait.h>
 
 struct timeval tv1,tv2,dtv;
 struct timezone tz;

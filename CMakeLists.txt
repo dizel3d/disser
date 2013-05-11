@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 2.8)
 project("disser")
 
-set(CMAKE_CXX_FLAGS "-std=c++0x -Wall -O3 -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}")
+set(CMAKE_CXX_FLAGS "-Wall -O3 -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}")
 
 #link_directories("${PROJECT_SOURCE_DIR}/pth-2.0.7/bin/lib")
 find_library(pthread pthread HINTS "${PROJECT_SOURCE_DIR}/pth-2.0.7/bin/lib")

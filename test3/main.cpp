@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <sys/wait.h>
+#include "test_cases.h"
 
 struct timeval tv1,tv2,dtv;
 struct timezone tz;
@@ -45,30 +46,6 @@ static void* doneTask(void* arg) {
 	return NULL;
 }
 
-static void* task1(void* arg)
-{
-	static volatile long res = 1;
-	for (long i = 0; i < 1000000; ++i) {
-		res ^= (i + 1) * 3 >> 2;
-	}
-	return doneTask(arg);
-}
-
-static void* task2(void* arg)
-{
-	for (long i = 0; i < 100000; ++i) {
-		sched_yield();
-	}
-	return doneTask(arg);
-}
-
-static void* task3(void* arg)
-{
-	return doneTask(arg);
-}
-
-static void* (*task)(void* arg) = NULL;
-
 int main(int argc, char *argv[])
 {
 	if (argc < 4) {
@@ -78,14 +55,9 @@ int main(int argc, char *argv[])
 	long processNum = atoi(argv[4]);
 	long threadNum = atoi(argv[3]);
 	long dtime = atol(argv[2]) * 1000;
-	long taskNum = atoi(argv[1]);
+	char* testName = argv[1];
 	long cycles = 0;
-
-	switch(taskNum) {
-	case 1: task = task1; break;
-	case 2: task = task2; break;
-	case 3: task = task3; break;
-	}
+	Task task = get_test(testName, doneTask);
 
 	for (long i = 0; i < processNum; ++i) {
 		if (fork() != 0) {

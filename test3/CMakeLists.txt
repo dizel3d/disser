@@ -12,3 +12,6 @@ target_link_libraries(test3_st ${st})
 set_target_properties(test3_st PROPERTIES OUTPUT_NAME "st")
 
 configure_file("test.sh" "test.sh" COPYONLY)
+
+add_custom_target(test3_mex ALL mex -o test ${CMAKE_CURRENT_SOURCE_DIR}/mex.c DEPENDS mex.c)
+configure_file("test.m" "test.m" COPYONLY)

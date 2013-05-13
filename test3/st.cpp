@@ -1,6 +1,4 @@
 #include <st.h>
-#include <ctime>
-#include <sys/time.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <signal.h>
@@ -10,18 +8,8 @@
 #include <stdio.h>
 #include <limits.h>
 #include <sys/wait.h>
+#include "timer.h"
 #include "test_cases.h"
-
-struct timeval tv1,tv2,dtv;
-struct timezone tz;
-void time_start() { gettimeofday(&tv1, &tz); }
-long time_stop()
-{ gettimeofday(&tv2, &tz);
-  dtv.tv_sec= tv2.tv_sec -tv1.tv_sec;
-  dtv.tv_usec=tv2.tv_usec-tv1.tv_usec;
-  if(dtv.tv_usec<0) { dtv.tv_sec--; dtv.tv_usec+=1000000; }
-  return dtv.tv_sec*1000+dtv.tv_usec/1000;
-}
 
 long workingNum = 0;
 
@@ -49,11 +37,21 @@ int main(int argc, char *argv[])
 	char* testName = argv[1];
 	long cycles = 0;
 	Task task = get_test(testName, doneTask);
+	int pipefd[2];
+
+	// open pipe
+    if (pipe(pipefd) == -1) {
+        perror("pipe");
+        exit(EXIT_FAILURE);
+    }
 
 	for (long i = 0; i < processNum; ++i) {
 		if (fork() != 0) {
 			continue;
 		}
+
+		// close unused read end
+		close(pipefd[0]);
 
 		st_init();
 
@@ -80,15 +78,24 @@ int main(int argc, char *argv[])
 			//pids.pop_front();
 			cycles += threadNum - workingNum;
 		}
-		cycles += workingNum;
+		//cycles += workingNum;
 
-		std::cout << ((long double) cycles * 1000) / dtime  << std::endl;
+		write(pipefd[1], &cycles, sizeof(cycles));
+		close(pipefd[1]);
 
 		return 0;
 	}
-	for (long i = 0; i < processNum; ++i) {
-		wait(NULL);
+
+	// close unused write end
+	close(pipefd[1]);
+
+	long double result = 0;
+	while (read(pipefd[0], &cycles, sizeof(cycles)) > 0) {
+		result += cycles;
 	}
+	close(pipefd[0]);
+
+	std::cout << ((long double) result * 1000) / dtime << std::endl;
 
 	return 0;
 }

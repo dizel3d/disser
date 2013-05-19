@@ -7,24 +7,23 @@ function test( testNum, time, count )
     set(0,'DefaultTextFontname', 'Times New Roman');
     set(0,'DefaultTextFontSize', 14);
 
-    threadNums = [1 1; 1 2; 1 4; 2 4; 4 4; 8 4; 16 4; 32 4; 64 4];
-
     % measure
-    x = (threadNums(:, 1) .* threadNums(:, 2))';
-    pthread = doMeasure('pthread');
-    st = doMeasure('pth');
-    pth = doMeasure('st');
+    tn = [1 1; 1 2; 1 4; 2 4; 4 4; 8 4; 16 4; 32 4; 64 4];
+    x = (tn(:, 1) .* tn(:, 2))';
+    pthread = doMeasure('pthread', [x; ones(1, length(x))]');
+    st = doMeasure('st', tn);
+    pth = doMeasure('pth', tn);
 
     % save measurements
     global measurements;
-    measurements{testNum} = struct('threadNums', threadNums, 'pthread', pthread, 'st', st, 'pth', pth);
+    measurements{testNum} = struct('threadNums', tn, 'pthread', pthread, 'st', st, 'pth', pth);
 
     figure;
     drawResult(x, pthread.res, st.res, pth.res);
     figure;
     drawDiff(x, pthread.res, st.res, pth.res);
 
-    function results = doMeasure( threadType )
+    function results = doMeasure( threadType, threadNums )
         matrix = zeros(count, size(threadNums, 1));
         results = struct('res', matrix, 'real', matrix, 'user', matrix, 'sys', matrix);
 

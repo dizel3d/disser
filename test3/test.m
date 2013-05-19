@@ -1,31 +1,115 @@
-x = [
-    1 2 3 4 8 16 32 64 128 256
-];
-pthread = [
-    426.2 766 993.6 1214.6 1050.4 922.2 845.2 774.6 736.2 740.4;
-    421 763.4 1050 1225 1049.2 928.6 841.2 775.2 744.6 746.4;
-    418.6 748.4 1047.4 1194 1048.2 931.6 840.2 767 725.8 734.4;
-    397 763.6 1050 1222.6 1044.4 930.4 832.6 775.8 749.4 749.6;
-    431 761 1051.6 1224 1054.2 932.2 838.8 772.4 765.4 733
-];
-st = [
-    421.6 736.4 1047.4 1246.2 1244 1250.4 1222.4 1238.4 1260.8 1280;
-    426.2 736.8 1047 1239.4 1252.4 1250.4 1248 1260.8 1267.2 1280;
-    416 743.8 1049.8 1254.8 1253.2 1188.8 1241.6 1228.8 1260.8 1280;
-    433 745.4 1038.6 1251.2 1255.2 1254.4 1259.2 1251.2 1260.8 1280;
-    432.8 745.2 1040.2 1197.4 1213.2 1256.8 1211.2 1257.6 1216 1280
-];
-pth = [
-    426.8 712.6 1004 1198.2 1215.2 1215.2 1206.4 1200 1132.8 1126.4;
-    417.2 716 999.6 1202.4 1208.4 1208.8 1174.4 1203.2 1094.4 1100.8;
-    419.2 716.8 997.8 1200.4 1203.6 1200.8 1164.8 1187.2 1177.6 1024;
-    419.8 718.8 987 1198.8 1213.2 1212 1203.2 1196.8 1177.6 1126.4;
-    422.6 713.6 1000.8 1203.8 1217.2 1207.2 1209.6 1206.4 1177.6 1126.4
-];
+function test( testNum, time, count )
+    % Change default axes fonts.
+    set(0,'DefaultAxesFontName', 'Times New Roman');
+    set(0,'DefaultAxesFontSize', 14);
 
-close all;
+    % Change default text fonts.
+    set(0,'DefaultTextFontname', 'Times New Roman');
+    set(0,'DefaultTextFontSize', 14);
 
-test_f(x, pthread, st, pth);
+    threadNums = [1 1; 1 2; 1 4; 2 4; 4 4; 8 4; 16 4; 32 4; 64 4];
 
-figure;
-test_f2(x, pthread, st, pth);
+    % measure
+    x = (threadNums(:, 1) .* threadNums(:, 2))';
+    pthread = doMeasure('pthread');
+    st = doMeasure('pth');
+    pth = doMeasure('st');
+
+    % save measurements
+    global measurements;
+    measurements{testNum} = struct('threadNums', threadNums, 'pthread', pthread, 'st', st, 'pth', pth);
+
+    figure;
+    drawResult(x, pthread.res, st.res, pth.res);
+    figure;
+    drawDiff(x, pthread.res, st.res, pth.res);
+
+    function results = doMeasure( threadType )
+        matrix = zeros(count, size(threadNums, 1));
+        results = struct('res', matrix, 'real', matrix, 'user', matrix, 'sys', matrix);
+
+        for i = 1:count,
+            for j = 1:size(threadNums, 1),
+                result = measure(threadType, testNum, time, threadNums(j, 1), threadNums(j, 2));
+                results.res(i, j) = result.res * time / result.real;
+                results.real(i, j) = result.real;
+                results.user(i, j) = result.user;
+                results.sys(i, j) = result.sys;
+            end
+        end
+    end
+
+    % количество выполненных задач
+    function [ ] = drawResult( x, varargin )
+        clf;
+        grid on;
+        hold on;
+        xlim([1 200]);
+
+        title(sprintf('Графики зависимости количества выполненных задач от количества потоков (тест %d)', testNum));
+        xlabel('Количество потоков выполнения');
+        ylabel('Количество выполненных задач');
+
+        c1 = {'r-', 'g--', 'b-.'};
+        c2 = {'ro', 'go', 'bo'};
+        c3 = {[1, 0.9, 0.9], [0.9, 1, 0.9], [0.9, 0.9, 1]};
+        for i = 1:length(varargin),
+            y = varargin{i};
+            meanY = mean(y, 1);
+            
+            plot(x, meanY, c1{mod(i, length(c1)) + 1});
+        end
+
+        legend('pthread','st', 'pth', 'Location','SouthEast');
+
+        for i = 1:length(varargin),
+            y = varargin{i};
+            meanY = mean(y, 1);
+            
+            plot(x, y, c2{mod(i, length(c2)) + 1});
+            
+            newX = (4:0.1:65);
+            plot(newX, interp1(x(4:length(x)), meanY(4:length(x)), newX, 'spline'), 'k--');
+            
+            for j=1:length(x)
+                text(x(j), meanY(j), sprintf('%d', x(j)), 'BackgroundColor',c3{mod(i, length(c3)) + 1}, 'HorizontalAlignment','center', 'FontSize',12);
+            end
+        end
+    end
+
+    % прирост производительности относительно pthread
+    function [ ] = drawDiff( x, varargin )
+        clf;
+        grid on;
+        hold on;
+        xlim([1 128]);
+
+        title(sprintf('Графики прироста производительности потоков выполнения относительно системных потоков (тест %d)', testNum));
+        xlabel('Количество потоков выполнения');
+        ylabel('Прирост производительности (в разах)');
+
+        c1 = {'r-', 'g--', 'b-.'};
+        c2 = {'ro', 'go', 'bo'};
+        c3 = {[1, 0.9, 0.9], [0.9, 1, 0.9], [0.9, 0.9, 1]};
+        meanY = zeros(length(varargin), length(x));
+        pthreadM = mean(varargin{1}, 1);
+        for i = 2:length(varargin),
+            y = varargin{i};
+            m = mean(y, 1);
+            meanY(i,:) = max(0, m ./ pthreadM);
+            
+            plot(x, meanY(i,:), c1{mod(i, length(c1)) + 1});
+        end
+
+        legend('st', 'pth', 'Location','SouthEast');
+
+        for i = 2:length(varargin),
+            for j=1:length(x)
+                text(x(j), meanY(i,j), sprintf('%d', x(j)), 'BackgroundColor',c3{mod(i, length(c3)) + 1}, 'HorizontalAlignment','center', 'FontSize',12);
+            end
+        end
+
+        % относительная погрешность прироста производительности на 64 потоках (частное отклонения и мат. ожидания)
+        display(std(varargin{2}(:,7), 1) / mean(varargin{2}(:,7), 1));
+    end
+end

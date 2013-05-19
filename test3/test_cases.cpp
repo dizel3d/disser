@@ -8,8 +8,8 @@ typedef void (*InternalTask)(void*);
 
 // arithmetic
 void task1(void* arg) {
-	static volatile long res = 1;
-	for (long i = 0; i < 1000000; ++i) {
+	volatile long res = 1;
+	for (long i = 0; i < 10000000; ++i) {
 		res ^= (i + 1) * 3 >> 2;
 	}
 }

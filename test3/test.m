@@ -81,7 +81,7 @@ function test( testNum, time, count )
         clf;
         grid on;
         hold on;
-        xlim([1 128]);
+        xlim([1 200]);
 
         title(sprintf('Графики прироста производительности потоков выполнения относительно системных потоков (тест %d)', testNum));
         xlabel('Количество потоков выполнения');

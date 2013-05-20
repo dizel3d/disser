@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <limits.h>
 #include <sys/wait.h>
+#include <fcntl.h>
+#include <list>
 #include "timer.h"
 #include "test_cases.h"
 
@@ -16,6 +18,8 @@ long workingNum = 0;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
+static std::list<pthread_t> terminated_pids;
+
 static void* doneTask(void* arg) {
 	int rc = 0;
 	if ((rc = pthread_mutex_lock(&mutex)) != 0) {
@@ -23,6 +27,7 @@ static void* doneTask(void* arg) {
 		return NULL;
 	}
 	--workingNum;
+	terminated_pids.push_back(pthread_self());
 	if ((rc = pthread_cond_signal(&cond)) != 0) {
 		std::cout << "pthread_cond_signal " << rc << " " << strerror(rc) << std::endl;
 		return NULL;
@@ -32,6 +37,68 @@ static void* doneTask(void* arg) {
 		return NULL;
 	}
 	return NULL;
+}
+
+// mutex
+static pthread_mutex_t test4_mutex = PTHREAD_MUTEX_INITIALIZER;
+void task4(void* arg)
+{
+	for (long i = 0; i < 100000; ++i) {
+		int rc = 0;
+		if ((rc = pthread_mutex_lock(&test4_mutex)) != 0) {
+			std::cout << "pthread_mutex_lock " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+		if ((rc = pthread_mutex_unlock(&test4_mutex)) != 0) {
+			std::cout << "pthread_mutex_unlock " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+	}
+}
+
+// read/write without call multiplexing
+void task7(void* arg)
+{
+	static int wfd = open("/dev/null", O_WRONLY);
+	int rc = 0;
+	static const int count = 40000;
+
+	for (long i = 0; i < count; ++i) {
+		if ((rc = write(wfd, &rc, sizeof(rc))) <= 0) {
+			std::cout << "write " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+	}
+}
+
+// read/write with call multiplexing
+void task8(void* arg)
+{
+	static int rfd0 = open("/dev/random", O_RDONLY);
+	static int rfd1 = open("/dev/urandom", O_RDONLY);
+	static int rfd2 = open("/dev/zero", O_RDONLY);
+	static int wfd = open("/dev/null", O_WRONLY);
+	int rc = 0;
+	static const int count = 10000;
+
+	for (long i = 0; i < count; ++i) {
+		if ((rc = read(rfd0, &rc, sizeof(rc))) <= 0) {
+			std::cout << "read " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+		if ((rc = read(rfd1, &rc, sizeof(rc))) <= 0) {
+			std::cout << "read " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+		if ((rc = read(rfd2, &rc, sizeof(rc))) <= 0) {
+			std::cout << "read " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+		if ((rc = write(wfd, &rc, sizeof(rc))) <= 0) {
+			std::cout << "write " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+	}
 }
 
 int main(int argc, char *argv[])
@@ -61,6 +128,9 @@ int main(int argc, char *argv[])
 
 		// close unused read end
 		close(pipefd[0]);
+
+		pthread_mutexattr_t test4_mutexattr;
+		pthread_mutex_init(&test4_mutex, &test4_mutexattr);
 
 		pthread_attr_t attr;
 		pthread_attr_init(&attr);
@@ -99,6 +169,11 @@ int main(int argc, char *argv[])
 			//pthread_join(pids.front(), NULL);
 			//pids.pop_front();
 			cycles += threadNum - workingNum;
+
+			while (!terminated_pids.empty()) {
+				pthread_detach(terminated_pids.front());
+				terminated_pids.pop_front();
+			}
 		}
 		//cycles += workingNum;
 

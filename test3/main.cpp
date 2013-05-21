@@ -39,6 +39,13 @@ static void* doneTask(void* arg) {
 	return NULL;
 }
 
+// context switching
+void task2(void* arg) {
+	for (long i = 0; i < 1000000; ++i) {
+		sched_yield();
+	}
+}
+
 // mutex
 static pthread_mutex_t test4_mutex = PTHREAD_MUTEX_INITIALIZER;
 void task4(void* arg)

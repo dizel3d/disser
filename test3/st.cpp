@@ -26,6 +26,13 @@ static void* doneTask(void* arg) {
 	return NULL;
 }
 
+// context switching
+void task2(void* arg) {
+	for (long i = 0; i < 1000000; ++i) {
+		st_sleep(0);
+	}
+}
+
 // mutex
 static st_mutex_t test4_mutex = st_mutex_new();
 void task4(void* arg)

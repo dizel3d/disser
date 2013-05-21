@@ -15,11 +15,7 @@ void task1(void* arg) {
 }
 
 // context switching
-void task2(void* arg) {
-	for (long i = 0; i < 1000000; ++i) {
-		sched_yield();
-	}
-}
+extern void task2(void* arg);
 
 // create/delete
 void task3(void* arg) {

@@ -29,7 +29,8 @@ static void* doneTask(void* arg) {
 // context switching
 void task2(void* arg) {
 	for (long i = 0; i < 1000000; ++i) {
-		st_sleep(0);
+		//st_sleep(0);
+		sched_yield();
 	}
 }
 
@@ -95,6 +96,62 @@ void task8(void* arg)
 	}
 }
 
+static const char* files[] = {
+		"/Users/vss/projects/1.gz",
+		"/Users/vss/projects/2.gz",
+		"/Users/vss/projects/3.gz",
+		"/Users/vss/projects/4.gz",
+		"/dev/random",
+};
+
+static int num = 0;
+
+void task15(void* arg)
+{
+	st_netfd_t rfd = st_open("/Users/vss/projects/1.gz", O_RDONLY, S_IRUSR);
+	st_netfd_t wfd = st_open("/Users/vss/projects/tmp.gz", O_WRONLY, S_IWUSR);
+
+	for (long w = 0; w < 3; ++w) {
+		char buffer[32096];
+		const char str[] = "Of course, take it!";
+		char response[1024 + sizeof(str)];
+		int rc = 0;
+
+		int c = 0;
+		while (c < sizeof(buffer))
+		{
+			if ((rc = st_read(rfd, buffer + c, std::min<int>(4, sizeof(buffer) - c), -1)) <= 0) {
+				std::cout << "st_read " << rc << " " << strerror(rc) << std::endl;
+				exit(1);
+			}
+			c += rc;
+		}
+
+		if ((rc = st_mutex_lock(test4_mutex)) != 0) {
+			std::cout << "st_mutex_lock " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+
+		for (int i = 0; i < sizeof(response); i += sizeof(str))
+		{
+			memcpy(response + i, str, sizeof(str));
+		}
+
+		if ((rc = st_mutex_unlock(test4_mutex)) != 0) {
+			std::cout << "st_mutex_unlock " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+
+		if ((rc = st_write(wfd, response, sizeof(response), -1)) <= 0) {
+			std::cout << "st_write " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+	}
+
+	st_netfd_close(rfd);
+	st_netfd_close(wfd);
+}
+
 int main(int argc, char *argv[])
 {
 	if (argc < 4) {
@@ -131,7 +188,7 @@ int main(int argc, char *argv[])
 		time_start();
 		while (time_stop() < dtime) {
 			for (long i = workingNum; i < threadNum; ++i) {
-				if ((pid = st_thread_create(task, NULL, false, PTHREAD_STACK_MIN)) == NULL) {
+				if ((pid = st_thread_create(task, NULL, false, PTHREAD_STACK_MIN * 8)) == NULL) {
 					std::cout << "st_thread_create " << rc << " " << strerror(rc) << std::endl;
 					return 2;
 				}

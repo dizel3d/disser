@@ -108,6 +108,62 @@ void task8(void* arg)
 	}
 }
 
+static const char* files[] = {
+		"/Users/vss/projects/1.gz",
+		"/Users/vss/projects/2.gz",
+		"/Users/vss/projects/3.gz",
+		"/Users/vss/projects/4.gz",
+		"/dev/random",
+};
+
+static int num = 0;
+
+void task15(void* arg)
+{
+	int rfd = open("/Users/vss/projects/1.gz", O_RDONLY);
+	int wfd = open("/Users/vss/projects/tmp.gz", O_WRONLY);
+
+	for (long w = 0; w < 3; ++w) {
+		char buffer[32096];
+		const char str[] = "Of course, take it!";
+		char response[1024 + sizeof(str)];
+		int rc = 0;
+
+		int c = 0;
+		while (c < sizeof(buffer))
+		{
+			if ((rc = read(rfd, buffer + c, std::min<int>(4, sizeof(buffer) - c))) <= 0) {
+				std::cout << "read " << rc << " " << strerror(rc) << std::endl;
+				exit(1);
+			}
+			c += rc;
+		}
+
+		if ((rc = pthread_mutex_lock(&test4_mutex)) != 0) {
+			std::cout << "pthread_mutex_lock " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+
+		for (int i = 0; i < sizeof(response); i += sizeof(str))
+		{
+			memcpy(response + i, str, sizeof(str));
+		}
+
+		if ((rc = pthread_mutex_unlock(&test4_mutex)) != 0) {
+			std::cout << "pthread_mutex_unlock " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+
+		if ((rc = write(wfd, response, sizeof(response))) <= 0) {
+			std::cout << "write " << rc << " " << strerror(rc) << std::endl;
+			exit(1);
+		}
+	}
+
+	close(rfd);
+	close(wfd);
+}
+
 int main(int argc, char *argv[])
 {
 	if (argc < 4) {
@@ -141,7 +197,7 @@ int main(int argc, char *argv[])
 
 		pthread_attr_t attr;
 		pthread_attr_init(&attr);
-		pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN);
+		pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN * 8);
 
 		pthread_mutexattr_t mutexattr;
 		pthread_mutex_init(&mutex, &mutexattr);
@@ -158,7 +214,8 @@ int main(int argc, char *argv[])
 		}
 
 		time_start();
-		while (time_stop() < dtime) {
+		bool working = true;
+		while ((working = (time_stop() < dtime)) || workingNum) {
 			for (long i = workingNum; i < threadNum; ++i) {
 				if ((rc = pthread_create(&pid, &attr, task, NULL)) != 0) {
 					std::cout << "pthread_create " << rc << " " << strerror(rc) << std::endl;
@@ -176,6 +233,9 @@ int main(int argc, char *argv[])
 			//pthread_join(pids.front(), NULL);
 			//pids.pop_front();
 			cycles += threadNum - workingNum;
+			if (!working) {
+				threadNum = workingNum;
+			}
 
 			while (!terminated_pids.empty()) {
 				pthread_detach(terminated_pids.front());

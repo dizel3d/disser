@@ -47,6 +47,9 @@ extern void task7(void* arg);
 // read/write with call multiplexing
 extern void task8(void* arg);
 
+// web-server
+extern void task15(void* arg);
+
 static InternalTask task;
 static Task doneTask;
 
@@ -67,6 +70,7 @@ Task get_test(const char* key, Task callback)
 	tasks["6"] = task6;
 	tasks["7"] = task7;
 	tasks["8"] = task8;
+	tasks["15"] = task15;
 
 	task = tasks[key];
 	doneTask = callback;

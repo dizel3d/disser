@@ -15,4 +15,5 @@ configure_file("test.sh" "test.sh" COPYONLY)
 
 add_custom_target(test3_mex ALL mex -o measure ${CMAKE_CURRENT_SOURCE_DIR}/mex.c DEPENDS mex.c)
 configure_file("test.m" "test.m" COPYONLY)
+configure_file("test2.m" "test2.m" COPYONLY)
 configure_file("united_test.m" "united_test.m" COPYONLY)
